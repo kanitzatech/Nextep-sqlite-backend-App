@@ -67,4 +67,32 @@ public class FinalReportResponse {
         private Double categoryScore;
         private Double preferenceBonus;
     }
+
+    // Nested classes for analysis
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class PreferredCollegeAnalysis {
+        private String college_name;
+        private String course;
+        private Double your_cutoff;
+        private Double college_cutoff;
+        private Double probability;
+        private String chance_label;
+        private String reason;
+    }
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class TargetCollege {
+        private String college_name;
+        private String course;
+        private Double score;
+        private String chance_label;
+    }
 }

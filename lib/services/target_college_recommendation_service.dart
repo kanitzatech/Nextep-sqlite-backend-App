@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:guidex/models/recommendation.dart';
 import 'package:guidex/services/api_service.dart';
 import 'package:guidex/services/probability_calculator_service.dart';
@@ -72,10 +73,14 @@ Reason: $reason
 class TargetCollegeRecommendationService {
   static const int _defaultReturnCount = 15;
 
-  /// Get target college recommendations based on student profile
+  /// Get target college recommendations - Auto-assigned by system
   ///
-  /// Returns top colleges that best match student's merit + location + interest
-  /// NOT based on user's preferences, but on what they can actually get
+  /// Algorithm:
+  /// 1. Fetch ALL colleges from API
+  /// 2. Remove preferred colleges (user-selected)
+  /// 3. Calculate probability for each remaining college
+  /// 4. Sort by probability descending
+  /// 5. Return top colleges
   static Future<List<TargetCollegeResult>> getTargetCollegeRecommendations({
     required double studentCutoff,
     required String category,
@@ -83,271 +88,150 @@ class TargetCollegeRecommendationService {
     String? preferredLocation,
     ApiService? apiService,
     int returnCount = _defaultReturnCount,
+    List<String> preferredCollegeNames = const [],
   }) async {
     final api = apiService ?? ApiService();
 
     try {
-      // STEP 1: Fetch all colleges for this category
-      final result = await api.getRecommendationResult(
-        category: category,
-        cutoff: studentCutoff,
-        preferredCourse: courseInterest,
-        district: null, // Get ALL colleges, not filtered by district
-        preferredCollegeIds: const [],
-        preferredCollegeNames: const [],
-      );
+      debugPrint('🎯 TARGET: Fetching colleges for auto-assign');
+      debugPrint('  Cutoff: $studentCutoff, Category: $category');
+      debugPrint(
+          '  Excluding ${preferredCollegeNames.length} preferred colleges');
 
-      // Combine all colleges from both buckets
-      final allColleges = <Recommendation>[
-        ...result.preferredColleges,
-        ...result.safeColleges,
-        ...result.all,
-      ];
-
-      // STEP 2: Filter colleges (student can get in or close)
-      final filteredColleges = _filterColleges(
-        colleges: allColleges,
-        studentCutoff: studentCutoff,
-        category: category,
-        preferredLocation: preferredLocation,
-      );
-
-      // STEP 3: Score each college (match quality)
-      final scoredColleges = <_ScoredCollege>[];
-
-      for (final college in filteredColleges) {
-        final score = _calculateMatchScore(
-          college: college,
-          studentCutoff: studentCutoff,
-          courseInterest: courseInterest,
-          preferredLocation: preferredLocation,
+      // STEP 1: Get ALL colleges from API
+      List<Recommendation> allColleges = [];
+      try {
+        allColleges = await api.getRecommendations(
+          category: category,
+          cutoff: studentCutoff,
+          interest: courseInterest,
+          district: null,
         );
-
-        final matchReasons = _getMatchReasons(
-          college: college,
-          studentCutoff: studentCutoff,
-          score: score,
-          preferredLocation: preferredLocation,
-          courseInterest: courseInterest,
-        );
-
-        scoredColleges.add(_ScoredCollege(
-          college: college,
-          matchScore: score,
-          matchReasons: matchReasons,
-        ));
+        debugPrint('🎯 ✅ Fetched ${allColleges.length} colleges from API');
+      } catch (e) {
+        debugPrint('🎯 ❌ API fetch failed: $e');
+        return [];
       }
 
-      // STEP 4: Sort by match score (descending)
-      scoredColleges.sort((a, b) => b.matchScore.compareTo(a.matchScore));
+      if (allColleges.isEmpty) {
+        debugPrint('🎯 ⚠️ API returned no colleges');
+        return [];
+      }
 
-      // STEP 5: Convert to target college results with probabilities
-      final targetResults = <TargetCollegeResult>[];
+      // STEP 2: Remove preferred colleges from consideration
+      final List<Recommendation> targetList = [];
+      for (final college in allColleges) {
+        bool isPreferred = false;
+        for (final prefName in preferredCollegeNames) {
+          final collegeLower = college.collegeName.toLowerCase().trim();
+          final prefLower = prefName.toLowerCase().trim();
+          if (collegeLower.contains(prefLower) ||
+              prefLower.contains(collegeLower)) {
+            isPreferred = true;
+            debugPrint('🎯  → Excluding preferred: ${college.collegeName}');
+            break;
+          }
+        }
+        if (!isPreferred) {
+          targetList.add(college);
+        }
+      }
 
-      for (final scored in scoredColleges.take(returnCount)) {
-        final college = scored.college;
+      debugPrint(
+          '🎯 Remaining candidates: ${targetList.length} (excluded ${preferredCollegeNames.length} preferred)');
 
-        // Calculate probability using strict algorithm
+      if (targetList.isEmpty) {
+        debugPrint('🎯 ❌ No candidates left after filtering');
+        return [];
+      }
+
+      // STEP 3: Calculate probability for each candidate
+      final List<_ScoredCollege> scored = [];
+
+      for (final college in targetList) {
+        final isLocationMatch = preferredLocation != null &&
+            college.district != null &&
+            college.district!.toLowerCase() == preferredLocation.toLowerCase();
+
         final probResult = ProbabilityCalculatorService.calculateProbability(
           collegeName: college.collegeName,
           courseName: college.courseName,
           studentCutoff: studentCutoff,
           collegeCutoff: college.cutoff > 0 ? college.cutoff : 100.0,
           category: category,
-          isPreferredCollege: false, // These are NOT user's preferred choices
-          isLocationMatch: preferredLocation != null &&
-              college.district != null &&
-              college.district!.toLowerCase().trim() ==
-                  preferredLocation.toLowerCase().trim(),
+          isPreferredCollege: false,
+          isLocationMatch: isLocationMatch,
           hostelAvailable: true,
         );
 
-        targetResults.add(TargetCollegeResult(
-          collegeName: probResult.collegeName,
-          courseName: probResult.courseName,
-          studentCutoff: studentCutoff,
-          collegeCutoff: probResult.collegeCutoff,
-          probability: probResult.probability,
-          label: probResult.label,
-          reason: probResult.reason,
-          district: college.district ?? 'Not Specified',
-          collegeType: college.collegeType ?? 'Unknown',
-          collegeRank: college.collegeRank ?? 0,
-          category: category,
-          matchScore: scored.matchScore,
-          matchReasons: scored.matchReasons,
+        scored.add(_ScoredCollege(
+          college: college,
+          prob: probResult,
+          locMatch: isLocationMatch,
         ));
       }
 
-      return targetResults;
+      debugPrint('🎯 Calculated probabilities for ${scored.length} colleges');
+
+      // STEP 4: Sort by probability (descending)
+      scored.sort((a, b) => b.prob.probability.compareTo(a.prob.probability));
+
+      // STEP 5: Build results (top N)
+      final results = <TargetCollegeResult>[];
+
+      for (final item in scored.take(returnCount)) {
+        final reasons = <String>[];
+
+        // Add probability reason
+        reasons.add('${item.prob.probability}% match');
+
+        // Add location reason
+        if (item.locMatch) {
+          reasons.add('In your location');
+        }
+
+        results.add(TargetCollegeResult(
+          collegeName: item.prob.collegeName,
+          courseName: item.prob.courseName,
+          studentCutoff: studentCutoff,
+          collegeCutoff: item.prob.collegeCutoff,
+          probability: item.prob.probability,
+          label: item.prob.label,
+          reason: item.prob.reason,
+          district: item.college.district ?? '',
+          collegeType: item.college.collegeType ?? 'Unknown',
+          collegeRank: item.college.collegeRank ?? 0,
+          category: category,
+          matchScore: item.prob.probability.toDouble(),
+          matchReasons: reasons,
+        ));
+      }
+
+      debugPrint('🎯 ✅ Returning ${results.length} target colleges');
+      for (int i = 0; i < results.take(5).length; i++) {
+        final r = results[i];
+        debugPrint(
+            '🎯  ${i + 1}. ${r.collegeName}: ${r.probability}% (${r.label})');
+      }
+
+      return results;
     } catch (e) {
-      throw Exception('Failed to get target college recommendations: $e');
+      debugPrint('🎯 ❌ Exception: $e');
+      debugPrint('🎯 Stacktrace: ${StackTrace.current}');
+      return [];
     }
-  }
-
-  /// Filter colleges that student can potentially get into
-  static List<Recommendation> _filterColleges({
-    required List<Recommendation> colleges,
-    required double studentCutoff,
-    required String category,
-    String? preferredLocation,
-  }) {
-    return colleges.where((college) {
-      // Filter 1: Category must match
-      if (college.category.toLowerCase() != category.toLowerCase()) {
-        return false;
-      }
-
-      // Filter 2: College cutoff should be <= student cutoff + 15 marks
-      // (allow some wiggle room for realistic recommendations)
-      final difference = studentCutoff - college.cutoff;
-      if (difference < -15) {
-        return false; // Too difficult
-      }
-
-      // Filter 3: Avoid duplicates (normalize college names)
-      // (optional - helps if same college appears twice)
-
-      return true;
-    }).toList();
-  }
-
-  /// Calculate match score (0-100) for a college
-  ///
-  /// Considers:
-  /// - Cutoff proximity (most important - 60% weight)
-  /// - Location match (20% weight)
-  /// - College rank (10% weight)
-  /// - College type (10% weight)
-  static double _calculateMatchScore({
-    required Recommendation college,
-    required double studentCutoff,
-    required String courseInterest,
-    String? preferredLocation,
-  }) {
-    double score = 0;
-
-    // Score 1: Cutoff proximity (0-60 points)
-    // Perfect score if student cutoff is close to college cutoff
-    final difference = studentCutoff - college.cutoff;
-
-    double cutoffScore;
-    if (difference >= 10) {
-      cutoffScore = 60; // Perfect - can easily get in
-    } else if (difference >= 5) {
-      cutoffScore = 50; // Very good
-    } else if (difference >= 0) {
-      cutoffScore = 40; // Good
-    } else if (difference >= -5) {
-      cutoffScore = 25; // Moderate (slightly below)
-    } else if (difference >= -10) {
-      cutoffScore = 10; // Weak (below)
-    } else {
-      cutoffScore = 0; // Very weak (far below)
-    }
-
-    score += cutoffScore;
-
-    // Score 2: Location match (0-20 points)
-    if (preferredLocation != null && college.district != null) {
-      if (college.district!.toLowerCase().trim() ==
-          preferredLocation.toLowerCase().trim()) {
-        score += 20; // Perfect location match
-      } else {
-        score += 5; // Slight consideration
-      }
-    }
-
-    // Score 3: College rank (0-10 points)
-    // Higher rank = better college = higher score
-    if (college.collegeRank != null && college.collegeRank! > 0) {
-      final rankScore = (100 - college.collegeRank!.clamp(1, 100)).toDouble();
-      score += (rankScore / 10); // Normalize to 0-10
-    }
-
-    // Score 4: College type (0-10 points)
-    // Government colleges preferred over private
-    if (college.collegeType != null) {
-      if (college.collegeType!.toLowerCase().contains('government') ||
-          college.collegeType!.toLowerCase().contains('nit') ||
-          college.collegeType!.toLowerCase().contains('iit')) {
-        score += 10; // Prestigious government/NIT/IIT
-      } else if (college.collegeType!.toLowerCase().contains('aided')) {
-        score += 7; // Aided colleges
-      } else {
-        score += 5; // Private colleges
-      }
-    }
-
-    return score.clamp(0, 100);
-  }
-
-  /// Generate reasons why college is recommended
-  static List<String> _getMatchReasons({
-    required Recommendation college,
-    required double studentCutoff,
-    required double score,
-    String? preferredLocation,
-    required String courseInterest,
-  }) {
-    final reasons = <String>[];
-
-    final difference = studentCutoff - college.cutoff;
-
-    // Reason 1: Cutoff match
-    if (difference >= 10) {
-      reasons.add('Excellent cutoff match (+${difference.toStringAsFixed(1)})');
-    } else if (difference >= 5) {
-      reasons.add('Strong cutoff match (+${difference.toStringAsFixed(1)})');
-    } else if (difference >= 0) {
-      reasons.add('Good cutoff match (+${difference.toStringAsFixed(1)})');
-    } else if (difference >= -5) {
-      reasons.add('Realistic option (${difference.toStringAsFixed(1)} below)');
-    }
-
-    // Reason 2: Location match
-    if (preferredLocation != null && college.district != null) {
-      if (college.district!.toLowerCase() == preferredLocation.toLowerCase()) {
-        reasons.add('Matches your location preference ($preferredLocation)');
-      }
-    }
-
-    // Reason 3: Course match
-    if (college.courseName
-        .toLowerCase()
-        .contains(courseInterest.toLowerCase())) {
-      reasons.add('Offers ${college.courseName} (your interest area)');
-    }
-
-    // Reason 4: Reputation
-    if (college.collegeType != null) {
-      if (college.collegeType!.toLowerCase().contains('nit')) {
-        reasons.add('Prestigious NIT college');
-      } else if (college.collegeType!.toLowerCase().contains('iit')) {
-        reasons.add('Top-tier IIT college');
-      } else if (college.collegeType!.toLowerCase().contains('government')) {
-        reasons.add('Government college with good reputation');
-      }
-    }
-
-    // Reason 5: Rank
-    if (college.collegeRank != null && college.collegeRank! > 0) {
-      reasons.add('Strong college rank (#${college.collegeRank})');
-    }
-
-    return reasons.isNotEmpty ? reasons : ['Suitable match for your profile'];
   }
 }
 
-/// Internal class to hold scored college data
+/// Helper class to store college with calculated probability
 class _ScoredCollege {
   final Recommendation college;
-  final double matchScore;
-  final List<String> matchReasons;
+  final ProbabilityResult prob;
+  final bool locMatch;
 
   _ScoredCollege({
     required this.college,
-    required this.matchScore,
-    required this.matchReasons,
+    required this.prob,
+    required this.locMatch,
   });
 }

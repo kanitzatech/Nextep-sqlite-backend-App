@@ -74,12 +74,17 @@ class _FinalReportPageState extends State<FinalReportPage> {
     final preferredNames = widget.preferredCollegeNames
         .map((n) => n.toLowerCase().trim())
         .toList();
-    return _allTargets
+    final filtered = _allTargets
         .where((c) => !preferredNames.any((p) =>
             c.collegeName.toLowerCase().trim().contains(p) ||
             p.contains(c.collegeName.toLowerCase().trim())))
         .take(15)
         .toList();
+
+    debugPrint(
+        'Target colleges display: ${_allTargets.length} total, ${filtered.length} after removing preferred');
+
+    return filtered;
   }
 
   Future<void> _loadFinalReport() async {
@@ -300,7 +305,11 @@ class _FinalReportPageState extends State<FinalReportPage> {
   // ════════════════════════════════════════════════════════════════════════
   Future<List<TargetCollegeResponse>> _computeTargetCollegesClientSide() async {
     try {
+      debugPrint(
+          'Computing target colleges: cutoff=${widget.studentCutoff}, category=${widget.category}, course=${widget.preferredCourse}, location=${widget.district}');
+
       // Use the new TargetCollegeRecommendationService to get recommendations
+      // PASS preferred college names so they are EXCLUDED from target colleges
       final recommendations = await TargetCollegeRecommendationService
           .getTargetCollegeRecommendations(
         studentCutoff: widget.studentCutoff,
@@ -308,7 +317,15 @@ class _FinalReportPageState extends State<FinalReportPage> {
         courseInterest: widget.preferredCourse,
         preferredLocation: widget.district,
         returnCount: 15,
+        preferredCollegeNames: widget.preferredCollegeNames, // ← EXCLUDE these
       );
+
+      debugPrint(
+          'Target colleges computed: ${recommendations.length} recommendations');
+      for (final rec in recommendations.take(5)) {
+        debugPrint(
+            'Target: ${rec.collegeName} - ${rec.probability}% (${rec.label})');
+      }
 
       // Convert TargetCollegeResult to TargetCollegeResponse for display
       return recommendations
@@ -333,6 +350,7 @@ class _FinalReportPageState extends State<FinalReportPage> {
           .toList();
     } catch (e) {
       debugPrint('Target college recommendation failed: $e');
+      debugPrint('Error stacktrace: ${StackTrace.current}');
       return [];
     }
   }
