@@ -160,15 +160,14 @@ class _UserCategoryPageState extends State<UserCategoryPage>
 
                     const SizedBox(height: 40),
 
-                    // Animated Hero Image
+                    // Animated Hero Image - Perfect Circle
                     FadeTransition(
                       opacity: _fadeAnimation,
                       child: SlideTransition(
                         position: _slideAnimation,
                         child: Container(
-                          width: 320,
-                          height: 320,
-                          padding: const EdgeInsets.all(40),
+                          width: 300,
+                          height: 300,
                           decoration: BoxDecoration(
                             gradient: RadialGradient(
                               colors: [
@@ -180,17 +179,20 @@ class _UserCategoryPageState extends State<UserCategoryPage>
                             boxShadow: [
                               BoxShadow(
                                 color: const Color(0xFF6C63FF)
-                                    .withValues(alpha: 0.2),
-                                blurRadius: 40,
-                                offset: const Offset(0, 20),
+                                    .withValues(alpha: 0.25),
+                                blurRadius: 50,
+                                offset: const Offset(0, 25),
                               ),
                             ],
                           ),
-                          child: Image.asset(
-                            'assets/image/category.png',
-                            height: 240,
-                            width: 240,
-                            fit: BoxFit.contain,
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: ClipOval(
+                              child: Image.asset(
+                                'assets/image/category.png',
+                                fit: BoxFit.cover,
+                              ),
+                            ),
                           ),
                         ),
                       ),
