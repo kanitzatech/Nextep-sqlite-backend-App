@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:guidex/models/recommendation.dart';
-import 'package:guidex/services/api_service.dart';
+import 'package:guidex/repository/college_repository.dart';
 import 'package:guidex/services/probability_calculator_service.dart';
 
 /// Target College Recommendation Service
@@ -86,11 +86,11 @@ class TargetCollegeRecommendationService {
     required String category,
     required String courseInterest,
     String? preferredLocation,
-    ApiService? apiService,
+    CollegeRepository? repository,
     int returnCount = _defaultReturnCount,
     List<String> preferredCollegeNames = const [],
   }) async {
-    final api = apiService ?? ApiService();
+    final repo = repository ?? CollegeRepository();
 
     try {
       debugPrint('🎯 TARGET: Fetching colleges for auto-assign');
@@ -101,7 +101,7 @@ class TargetCollegeRecommendationService {
       // STEP 1: Get ALL colleges from API
       List<Recommendation> allColleges = [];
       try {
-        allColleges = await api.getRecommendations(
+        allColleges = await repo.getRecommendations(
           category: category,
           cutoff: studentCutoff,
           interest: courseInterest,

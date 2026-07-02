@@ -55,7 +55,7 @@ AuthFailure mapGenericAuthError(Object error) {
         (error.code == 'sign_in_failed' && raw.contains('api'))) {
       return const AuthFailure(
         'google-sign-in-config',
-        'Google Sign-In config error (ApiException:10). Add SHA-1 and SHA-256 for com.pathwise.app in Firebase, then download and replace google-services.json.',
+        'Google Sign-In config error (ApiException:10). Add SHA-1 and SHA-256 for com.kanitzatech.nextep in Firebase, then download and replace google-services.json.',
       );
     }
 

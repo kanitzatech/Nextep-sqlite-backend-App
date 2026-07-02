@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:guidex/app_routes.dart';
 import 'package:guidex/models/recommendation.dart';
 import 'package:guidex/models/recommendation_result.dart';
-import 'package:guidex/services/api_service.dart';
+import 'package:guidex/repository/college_repository.dart';
 import 'package:guidex/services/report_export_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -41,7 +41,7 @@ class AnalysisResultsPage extends StatefulWidget {
 }
 
 class _AnalysisResultsPageState extends State<AnalysisResultsPage> {
-  final ApiService _apiService = ApiService();
+  final CollegeRepository _repository = CollegeRepository();
   static const int _sectionPageSize = 12;
 
   bool _isLoading = true;
@@ -166,7 +166,7 @@ class _AnalysisResultsPageState extends State<AnalysisResultsPage> {
     try {
       final requestedDistrict = widget.district?.trim();
 
-      final results = await _apiService.getRecommendationResult(
+      final results = await _repository.getRecommendationResult(
         category: _resolvedCategory,
         cutoff: _resolvedCutoff,
         preferredCourse: _resolvedInterest,

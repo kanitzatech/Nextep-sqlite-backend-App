@@ -1,6 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:guidex/models/register_student_request.dart';
-import 'package:guidex/models/student_profile.dart';
 import 'package:guidex/services/auth/auth_failure.dart';
 import 'package:guidex/services/auth/auth_service.dart';
 
@@ -11,7 +11,7 @@ class AuthController extends ChangeNotifier {
 
   bool isLoading = false;
   String? errorMessage;
-  StudentProfile? currentUser;
+  User? currentUser;
 
   Future<bool> restoreSession() async {
     _startLoading();

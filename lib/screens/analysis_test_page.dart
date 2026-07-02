@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:guidex/app_routes.dart';
 import 'package:guidex/models/college_option.dart';
 import 'package:guidex/models/recommendation.dart';
-import 'package:guidex/services/api_service.dart';
+import 'package:guidex/repository/college_repository.dart';
 
 class AnalysisTestPage extends StatefulWidget {
   const AnalysisTestPage({super.key});
@@ -14,7 +14,7 @@ class AnalysisTestPage extends StatefulWidget {
 
 class _AnalysisTestPageState extends State<AnalysisTestPage> {
   final PageController _pageController = PageController();
-  final ApiService _apiService = ApiService();
+  final CollegeRepository _repository = CollegeRepository();
   int _currentStep = 0;
   bool _isLoading = false;
 
@@ -375,7 +375,7 @@ class _AnalysisTestPageState extends State<AnalysisTestPage> {
       _coursesLoading = true;
     });
 
-    final courses = await _apiService.getCourses();
+    final courses = await _repository.getCourses();
     if (!mounted) return;
 
     final resolved = courses.isEmpty ? _fallbackCourses : courses;
@@ -424,7 +424,7 @@ class _AnalysisTestPageState extends State<AnalysisTestPage> {
       _coursesLoading = true;
     });
 
-    final available = await _apiService.getAvailableCourses(
+    final available = await _repository.getAvailableCourses(
       category: _selectedCategory,
       cutoff: _cutoff,
     );
@@ -476,7 +476,7 @@ class _AnalysisTestPageState extends State<AnalysisTestPage> {
   }
 
   Future<void> _loadDistricts() async {
-    final districts = await _apiService.getDistricts();
+    final districts = await _repository.getDistricts();
     if (!mounted) return;
 
     final normalized = districts
@@ -513,7 +513,7 @@ class _AnalysisTestPageState extends State<AnalysisTestPage> {
     }
 
     final queryCourse = _courseDisplayToQuery[selectedCourse] ?? selectedCourse;
-    final options = await _apiService.getCollegeOptions(
+    final options = await _repository.getCollegeOptions(
       preferredCourse: queryCourse,
       district: null,
       category: _selectedCategory,
@@ -540,7 +540,7 @@ class _AnalysisTestPageState extends State<AnalysisTestPage> {
   Future<void> _loadCollegeOptions() async {
     try {
       // Use getAllColleges() to fetch ALL 426 Tamil Nadu TNEA colleges at once
-      final colleges = await _apiService.getAllColleges().timeout(
+      final colleges = await _repository.getAllColleges().timeout(
         const Duration(seconds: 15),
         onTimeout: () {
           debugPrint(
@@ -792,7 +792,7 @@ class _AnalysisTestPageState extends State<AnalysisTestPage> {
       try {
         // Fetch ALL college data without branch filter — send empty preferredCourse
         // so that the backend returns colleges across ALL branches.
-        final result = await _apiService.getRecommendationResult(
+        final result = await _repository.getRecommendationResult(
           category: _selectedCategory,
           cutoff: _cutoff,
           preferredCourse: interestQuery,

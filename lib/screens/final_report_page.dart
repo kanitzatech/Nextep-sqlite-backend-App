@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:guidex/models/recommendation.dart';
 import 'package:guidex/models/final_report_response.dart';
-import 'package:guidex/services/api_service.dart';
+import 'package:guidex/repository/college_repository.dart';
 import 'package:guidex/services/report_export_service.dart';
 import 'package:guidex/services/probability_calculator_service.dart';
 import 'package:guidex/services/target_college_recommendation_service.dart';
@@ -90,7 +90,7 @@ class _FinalReportPageState extends State<FinalReportPage> {
   Future<void> _loadFinalReport() async {
     try {
       // First, fetch college data to get actual cutoffs for preferred colleges
-      final collegeCutoffData = await ApiService().getRecommendationResult(
+      final collegeCutoffData = await CollegeRepository().getRecommendationResult(
         category: widget.category,
         cutoff: widget.studentCutoff,
         preferredCourse: widget.preferredCourse,
@@ -110,7 +110,7 @@ class _FinalReportPageState extends State<FinalReportPage> {
           _computePreferredCollegesWithAccuracy(allColleges);
 
       // Load final report from backend
-      final response = await ApiService().getFinalReport(
+      final response = await CollegeRepository().getFinalReport(
         studentName: widget.studentName,
         category: widget.category,
         studentCutoff: widget.studentCutoff,
@@ -253,18 +253,21 @@ class _FinalReportPageState extends State<FinalReportPage> {
 
         final double fallbackCutoff =
             (anyMatch?.cutoff ?? 0) > 0 ? (anyMatch?.cutoff ?? 0) : 0.0;
+        final bool isCourseOffered = anyMatch != null;
 
         result.add(SafeCollegeResponse(
           collegeName: prefName,
           course: widget.preferredCourse,
           collegeCutoff: fallbackCutoff,
           district: widget.district,
-          probability: fallbackCutoff > 0 ? 50.0 : 50.0, // Conservative default
-          chanceLabel: 'Moderate',
+          probability: fallbackCutoff > 0 ? 50.0 : (isCourseOffered ? 50.0 : 0.0), // Conservative default
+          chanceLabel: isCourseOffered ? 'Moderate' : 'Not Offered',
           reason: fallbackCutoff > 0
               ? 'College cutoff data found: ${fallbackCutoff.toStringAsFixed(1)}. Estimated probability based on your cutoff ${widget.studentCutoff.toStringAsFixed(1)}.'
-              : 'Unable to fetch college cutoff data. Estimated probability based on your cutoff ${widget.studentCutoff.toStringAsFixed(1)}.',
-          isAvailable: true,
+              : (isCourseOffered
+                  ? 'Unable to fetch college cutoff data. Estimated probability based on your cutoff ${widget.studentCutoff.toStringAsFixed(1)}.'
+                  : 'This college does not offer ${widget.preferredCourse}.'),
+          isAvailable: isCourseOffered,
         ));
       }
     }

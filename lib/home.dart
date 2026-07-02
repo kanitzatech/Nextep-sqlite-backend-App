@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:guidex/app_routes.dart';
-import 'package:guidex/models/student_profile.dart';
-import 'package:guidex/services/api_service.dart';
+import 'package:guidex/repository/college_repository.dart';
 import 'package:guidex/services/auth/auth_scope.dart';
 import 'package:guidex/models/recommendation.dart';
 
@@ -13,7 +13,7 @@ class Home extends StatefulWidget {
 }
 
 class _HomeState extends State<Home> {
-  final ApiService _apiService = ApiService();
+  final CollegeRepository _repository = CollegeRepository();
   final _authController = AuthScope.controller;
   int _selectedIndex = 0;
   List<Recommendation> _recommendedColleges = [];
@@ -60,7 +60,7 @@ class _HomeState extends State<Home> {
   Future<void> _loadRecommendations() async {
     try {
       // Mocking cutoff and interest for the dashboard preview
-      final results = await _apiService.getRecommendations(
+      final results = await _repository.getRecommendations(
           category: 'OC', cutoff: 185.0, interest: 'Software');
       setState(() {
         _recommendedColleges = results;
@@ -127,9 +127,9 @@ class _HomeState extends State<Home> {
   }
 
   Widget _buildGreeting() {
-    final StudentProfile? user = _authController.currentUser;
-    final String firstName = (user?.name.trim().isNotEmpty ?? false)
-        ? user!.name.trim().split(' ').first
+    final User? user = _authController.currentUser;
+    final String firstName = (user?.displayName?.trim().isNotEmpty ?? false)
+        ? user!.displayName!.trim().split(' ').first
         : 'Student';
 
     return Row(

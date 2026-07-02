@@ -1,5 +1,6 @@
 buildscript {
     repositories {
+        maven { url = uri("https://mirrors.tencent.com/nexus/repository/maven-public/") }
         google()
         mavenCentral()
     }
@@ -10,6 +11,7 @@ buildscript {
 
 allprojects {
     repositories {
+        maven { url = uri("https://mirrors.tencent.com/nexus/repository/maven-public/") }
         google()
         mavenCentral()
     }

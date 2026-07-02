@@ -11,23 +11,23 @@ import 'package:guidex/screens/analysis_results_page.dart';
 import 'package:guidex/screens/final_report_page.dart';
 import 'package:guidex/models/recommendation.dart';
 import 'package:guidex/models/recommendation_result.dart';
-
-import 'package:guidex/services/api_service.dart';
-
+import 'firebase_options.dart';
+import 'package:guidex/repository/college_repository.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Start warming up API cache in background
-  ApiService().warmup();
 
   try {
     if (Firebase.apps.isEmpty) {
-      await Firebase.initializeApp().timeout(const Duration(seconds: 5));
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
     }
   } catch (e) {
-    debugPrint('Firebase initialization failed or timed out: $e');
-    // Continue to onboarding even if Firebase initialization fails.
+    debugPrint("Firebase initialization failed: $e");
   }
+
+  // Warm up SQLite database
+  CollegeRepository().warmup();
 
   runApp(const MyApp());
 }

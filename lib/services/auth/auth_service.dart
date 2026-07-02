@@ -1,19 +1,19 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:guidex/models/register_student_request.dart';
-import 'package:guidex/models/student_profile.dart';
 
 abstract class AuthService {
-  Future<StudentProfile> registerWithEmail(RegisterStudentRequest request);
+  Future<User> registerWithEmail(RegisterStudentRequest request);
 
-  Future<StudentProfile> signInWithEmail({
+  Future<User> signInWithEmail({
     required String email,
     required String password,
   });
 
-  Future<StudentProfile> signInWithGoogle();
+  Future<User> signInWithGoogle();
 
-  Future<StudentProfile> signInWithApple();
+  Future<User> signInWithApple();
 
-  Future<StudentProfile?> restoreSession();
+  Future<User?> restoreSession();
 
   Future<void> signOut();
 }
